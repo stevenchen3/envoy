@@ -175,6 +175,7 @@ public:
   headersWithUnderscoresAction() const override {
     return envoy::config::core::v3::HttpProtocolOptions::ALLOW;
   }
+  const LocalReply::LocalReply& localReply() const override { return *local_reply_; }
   Http::Code request(absl::string_view path_and_query, absl::string_view method,
                      Http::ResponseHeaderMap& response_headers, std::string& body) override;
   void closeSocket();
@@ -291,7 +292,7 @@ private:
     AdminListenSocketFactory(Network::SocketSharedPtr socket) : socket_(socket) {}
 
     // Network::ListenSocketFactory
-    Network::Address::SocketType socketType() const override { return socket_->socketType(); }
+    Network::Socket::Type socketType() const override { return socket_->socketType(); }
 
     const Network::Address::InstanceConstSharedPtr& localAddress() const override {
       return socket_->localAddress();
@@ -409,6 +410,7 @@ private:
   Network::ListenSocketFactorySharedPtr socket_factory_;
   AdminListenerPtr listener_;
   const AdminInternalAddressConfig internal_address_config_;
+  const LocalReply::LocalReplyPtr local_reply_;
 };
 
 } // namespace Server

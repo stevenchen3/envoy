@@ -247,7 +247,7 @@ ClusterManagerImpl::ClusterManagerImpl(
       time_source_(main_thread_dispatcher.timeSource()), dispatcher_(main_thread_dispatcher),
       http_context_(http_context),
       subscription_factory_(local_info, main_thread_dispatcher, *this, random,
-                            validation_context.dynamicValidationVisitor(), api) {
+                            validation_context.dynamicValidationVisitor(), api, runtime_) {
   async_client_manager_ = std::make_unique<Grpc::AsyncClientManagerImpl>(
       *this, tls, time_source_, api, grpc_context.statNames());
   const auto& cm_config = bootstrap.cluster_manager();
@@ -274,12 +274,22 @@ ClusterManagerImpl::ClusterManagerImpl(
   // loading is done because in v2 configuration each EDS cluster individually sets up a
   // subscription. When this subscription is an API source the cluster will depend on a non-EDS
   // cluster, so the non-EDS clusters must be loaded first.
+  auto is_primary_cluster = [](const envoy::config::cluster::v3::Cluster& cluster) -> bool {
+    return cluster.type() != envoy::config::cluster::v3::Cluster::EDS ||
+           (cluster.type() == envoy::config::cluster::v3::Cluster::EDS &&
+            cluster.eds_cluster_config().eds_config().config_source_specifier_case() ==
+                envoy::config::core::v3::ConfigSource::ConfigSourceSpecifierCase::kPath);
+  };
+  // Build book-keeping for which clusters are primary. This is useful when we
+  // invoke loadCluster() below and it needs the complete set of primaries.
   for (const auto& cluster : bootstrap.static_resources().clusters()) {
-    // First load all the primary clusters.
-    if (cluster.type() != envoy::config::cluster::v3::Cluster::EDS ||
-        (cluster.type() == envoy::config::cluster::v3::Cluster::EDS &&
-         cluster.eds_cluster_config().eds_config().config_source_specifier_case() ==
-             envoy::config::core::v3::ConfigSource::ConfigSourceSpecifierCase::kPath)) {
+    if (is_primary_cluster(cluster)) {
+      primary_clusters_.insert(cluster.name());
+    }
+  }
+  // Load all the primary clusters.
+  for (const auto& cluster : bootstrap.static_resources().clusters()) {
+    if (is_primary_cluster(cluster)) {
       loadCluster(cluster, "", false, active_clusters_);
     }
   }
@@ -1153,18 +1163,31 @@ void ClusterManagerImpl::ThreadLocalClusterManagerImpl::onHostHealthFailure(
     }
   }
   {
+    // Drain or close any TCP connection pool for the host. Draining a TCP pool doesn't lead to
+    // connections being closed, it only prevents new connections through the pool. The
+    // CLOSE_CONNECTIONS_ON_HOST_HEALTH_FAILURE can be used to make the pool close any
+    // active connections.
     const auto& container = config.host_tcp_conn_pool_map_.find(host);
     if (container != config.host_tcp_conn_pool_map_.end()) {
       for (const auto& pair : container->second.pools_) {
         const Tcp::ConnectionPool::InstancePtr& pool = pair.second;
-        pool->drainConnections();
+        if (host->cluster().features() &
+            ClusterInfo::Features::CLOSE_CONNECTIONS_ON_HOST_HEALTH_FAILURE) {
+          pool->closeConnections();
+        } else {
+          pool->drainConnections();
+        }
       }
     }
   }
 
   if (host->cluster().features() &
       ClusterInfo::Features::CLOSE_CONNECTIONS_ON_HOST_HEALTH_FAILURE) {
-
+    // Close non connection pool TCP connections obtained from tcpConnForCluster()
+    //
+    // TODO(jono): The only remaining user of the non-pooled connections seems to be the statsd
+    // TCP client. Perhaps it could be rewritten to use a connection pool, and this code deleted.
+    //
     // Each connection will remove itself from the TcpConnectionsMap when it closes, via its
     // Network::ConnectionCallbacks. The last removed tcp conn will remove the TcpConnectionsMap
     // from host_tcp_conn_map_, so do not cache it between iterations.
