@@ -8,6 +8,7 @@
 #include "envoy/network/address.h"
 
 #include "absl/container/fixed_array.h"
+#include "absl/types/optional.h"
 
 namespace Envoy {
 namespace Buffer {
@@ -84,6 +85,8 @@ public:
     Address::InstanceConstSharedPtr peer_address_;
     // The payload length of this packet.
     unsigned int msg_len_{0};
+    // The gso_size, if specified in the transport header
+    unsigned int gso_size_{0};
   };
 
   /**
@@ -141,13 +144,18 @@ public:
   virtual bool supportsMmsg() const PURE;
 
   /**
+   * return true if the platform supports udp_gro
+   */
+  virtual bool supportsUdpGro() const PURE;
+
+  /**
    * Bind to address. The handle should have been created with a call to socket()
    * @param address address to bind to.
    * @param addrlen address length
    * @return a Api::SysCallIntResult with rc_ = 0 for success and rc_ = -1 for failure. If the call
    *   is successful, errno_ shouldn't be used.
    */
-  virtual Api::SysCallIntResult bind(const sockaddr* address, socklen_t addrlen) PURE;
+  virtual Api::SysCallIntResult bind(Address::InstanceConstSharedPtr address) PURE;
 
   /**
    * Listen on bound handle.
@@ -165,7 +173,7 @@ public:
    * @return a Api::SysCallIntResult with rc_ = 0 for success and rc_ = -1 for failure. If the call
    *   is successful, errno_ shouldn't be used.
    */
-  virtual Api::SysCallIntResult connect(const sockaddr* address, socklen_t addrlen) PURE;
+  virtual Api::SysCallIntResult connect(Address::InstanceConstSharedPtr address) PURE;
 
   /**
    * Set option (see man 2 setsockopt)
@@ -180,17 +188,32 @@ public:
                                           socklen_t* optlen) PURE;
 
   /**
-   * Get local address to which handle is bound (see man 2 getsockname)
-   */
-  virtual Api::SysCallIntResult getLocalAddress(sockaddr* address, socklen_t* addrlen) PURE;
-
-  /**
    * Toggle blocking behavior
    * @param blocking flag to set/unset blocking state
    * @return a Api::SysCallIntResult with rc_ = 0 for success and rc_ = -1 for failure. If the call
    * is successful, errno_ shouldn't be used.
    */
   virtual Api::SysCallIntResult setBlocking(bool blocking) PURE;
+
+  /**
+   * Get domain used by underlying socket (see man 2 socket)
+   * @param domain updated to the underlying socket's domain if call is successful
+   * @return a Api::SysCallIntResult with rc_ = 0 for success and rc_ = -1 for failure. If the call
+   * is successful, errno_ shouldn't be used.
+   */
+  virtual absl::optional<int> domain() PURE;
+
+  /**
+   * Get local address (ip:port pair)
+   * @return local address as @ref Address::InstanceConstSharedPtr
+   */
+  virtual Address::InstanceConstSharedPtr localAddress() PURE;
+
+  /**
+   * Get peer's address (ip:port pair)
+   * @return peer's address as @ref Address::InstanceConstSharedPtr
+   */
+  virtual Address::InstanceConstSharedPtr peerAddress() PURE;
 };
 
 using IoHandlePtr = std::unique_ptr<IoHandle>;
