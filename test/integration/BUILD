@@ -8,7 +8,7 @@ load(
     "envoy_package",
     "envoy_proto_library",
     "envoy_select_hot_restart",
-    "envoy_select_legacy_codecs_in_integration_tests",
+    "envoy_select_new_codecs_in_integration_tests",
     "envoy_sh_test",
 )
 
@@ -471,6 +471,7 @@ envoy_cc_test(
     deps = [
         ":http_protocol_integration_lib",
         "//include/envoy/http:header_map_interface",
+        "//source/common/stats:histogram_lib",
         "//source/common/stats:stats_matcher_lib",
         "//source/extensions/filters/http/buffer:config",
         "//source/extensions/filters/http/health_check:config",
@@ -575,8 +576,8 @@ envoy_cc_test_library(
         "ssl_utility.h",
         "utility.h",
     ],
-    copts = envoy_select_legacy_codecs_in_integration_tests(
-        ["-DENVOY_USE_LEGACY_CODECS_IN_INTEGRATION_TESTS"],
+    copts = envoy_select_new_codecs_in_integration_tests(
+        ["-DENVOY_USE_NEW_CODECS_IN_INTEGRATION_TESTS"],
         "@envoy",
     ),
     data = ["//test/common/runtime:filesystem_test_data"],
@@ -804,6 +805,7 @@ envoy_cc_test(
 envoy_cc_test(
     name = "hds_integration_test",
     srcs = ["hds_integration_test.cc"],
+    shard_count = 2,
     tags = ["fails_on_windows"],
     deps = [
         ":http_integration_lib",
@@ -873,6 +875,21 @@ envoy_cc_test(
         ":http_integration_lib",
         "//test/common/grpc:grpc_client_integration_lib",
         "@envoy_api//envoy/service/runtime/v3:pkg_cc_proto",
+    ],
+)
+
+envoy_cc_test(
+    name = "extension_discovery_integration_test",
+    srcs = ["extension_discovery_integration_test.cc"],
+    tags = ["fails_on_windows"],
+    deps = [
+        ":http_integration_lib",
+        "//test/common/grpc:grpc_client_integration_lib",
+        "//test/integration/filters:set_response_code_filter_config_proto_cc_proto",
+        "//test/integration/filters:set_response_code_filter_lib",
+        "//test/test_common:utility_lib",
+        "@envoy_api//envoy/extensions/filters/network/http_connection_manager/v3:pkg_cc_proto",
+        "@envoy_api//envoy/service/extension/v3:pkg_cc_proto",
     ],
 )
 

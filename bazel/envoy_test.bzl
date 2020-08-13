@@ -210,11 +210,6 @@ def envoy_cc_test_library(
         repository + "//test/test_common:printers_includes",
     ]
 
-    # Same as envoy_cc_library
-    srcs += select({
-        "@envoy//bazel:compdb_build": ["@envoy//bazel/external:empty.cc"],
-        "//conditions:default": [],
-    })
     _envoy_cc_test_infrastructure_library(
         name,
         srcs,
@@ -247,7 +242,8 @@ def envoy_cc_test_binary(
         **kargs
     )
 
-# Envoy benchmark binaries should be specified with this function.
+# Envoy benchmark binaries should be specified with this function. bazel run
+# these targets to measure performance.
 def envoy_cc_benchmark_binary(
         name,
         deps = [],
@@ -258,7 +254,9 @@ def envoy_cc_benchmark_binary(
         **kargs
     )
 
-# Tests to validate that Envoy benchmarks run successfully should be specified with this function.
+# Tests to validate that Envoy benchmarks run successfully should be specified
+# with this function. Not for actual performance measurements: iteratons and
+# expensive benchmarks will be skipped in the interest of execution time.
 def envoy_benchmark_test(
         name,
         benchmark_binary,

@@ -247,7 +247,10 @@ envoy_cc_library(
 envoy_cc_library(
     name = "exception_lib",
     hdrs = ["exception.h"],
-    deps = ["//include/envoy/http:header_map_interface"],
+    deps = [
+        "//include/envoy/http:codes_interface",
+        "//include/envoy/http:header_map_interface",
+    ],
 )
 
 envoy_cc_library(
@@ -344,6 +347,7 @@ envoy_cc_library(
     srcs = ["utility.cc"],
     hdrs = ["utility.h"],
     external_deps = [
+        "abseil_node_hash_set",
         "abseil_optional",
         "nghttp2",
     ],
