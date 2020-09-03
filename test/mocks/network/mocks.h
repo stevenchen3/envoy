@@ -123,10 +123,10 @@ public:
   WriteFilterCallbacks* write_callbacks_{};
 };
 
-class MockListenerCallbacks : public ListenerCallbacks {
+class MockTcpListenerCallbacks : public TcpListenerCallbacks {
 public:
-  MockListenerCallbacks();
-  ~MockListenerCallbacks() override;
+  MockTcpListenerCallbacks();
+  ~MockTcpListenerCallbacks() override;
 
   void onAccept(ConnectionSocketPtr&& socket) override { onAccept_(socket); }
 
@@ -358,6 +358,7 @@ public:
   MOCK_METHOD(Network::UdpPacketWriterFactoryOptRef, udpPacketWriterFactory, ());
   MOCK_METHOD(ConnectionBalancer&, connectionBalancer, ());
   MOCK_METHOD(ResourceLimit&, openConnections, ());
+  MOCK_METHOD(uint32_t, tcpBacklogSize, (), (const));
 
   envoy::config::core::v3::TrafficDirection direction() const override {
     return envoy::config::core::v3::UNSPECIFIED;
